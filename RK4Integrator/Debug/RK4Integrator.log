@@ -1,0 +1,7 @@
+﻿  main.cpp
+d:\profiles\njp2424\desktop\physics\advacned topics\physics-rk4-integrator-mastervs2019\rk4integrator\main.cpp(322): warning C4018: '<': signed/unsigned mismatch
+d:\profiles\njp2424\desktop\physics\advacned topics\physics-rk4-integrator-mastervs2019\rk4integrator\main.cpp(330): warning C4018: '<': signed/unsigned mismatch
+d:\profiles\njp2424\desktop\physics\advacned topics\physics-rk4-integrator-mastervs2019\rk4integrator\main.cpp(354): warning C4326: return type of 'main' should be 'int' instead of 'void'
+d:\profiles\njp2424\desktop\physics\advacned topics\physics-rk4-integrator-mastervs2019\rk4integrator\main.cpp(360): warning C4129: '/': unrecognized character escape sequence
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  RK4Integrator.vcxproj -> D:\Profiles\njp2424\Desktop\Physics\Advacned Topics\physics-RK4-Integrator-masterVS2019\RK4Integrator\Debug\RK4Integrator.exe
