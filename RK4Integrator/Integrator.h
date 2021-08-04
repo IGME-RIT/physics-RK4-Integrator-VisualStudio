@@ -45,67 +45,100 @@ https://en.wikipedia.org/wiki/Midpoint_method
 #pragma once
 #include "GLIncludes.h"
 
-glm::vec2 AcceleratedVel(glm::vec2 Acc, glm::vec2 velocity, float h)
-{
-	// Calculate the change in velocity ina given time h, for an acceleration of Acc
-	return velocity + (Acc*h);
+typedef float(*TwoVarFunc)(float, float);
+
+
+
+// Eulers Method is a first order numerical integration method that integrates an IVP ODE in the form dx/dt = f(x, t), x(a) = b.
+// dxdt is the function that we are taking the numerical integral of, so f(x, t).
+// initialValue is the x and t values of the initial value of the IVP, so <a, b>.
+// tValue is the value that we are trying to approximate. The output of this function will be an approximation of <tValue, x(tValue)>.
+// steps is the number of steps to iterate over. The higher the number, the more accurate, but slower.
+glm::vec2 EulersMethod(TwoVarFunc dxdt, glm::vec2 initialValue, float tValue, int steps) {
+	
+	// Setup the array to store the data.
+	glm::vec2* computedValues = (glm::vec2*) malloc(sizeof(glm::vec2) * (steps + 1));
+	computedValues[0] = initialValue;
+
+	// Calculate the distance of each step.
+	float stepDistance = (tValue - initialValue[1]) / steps;
+
+	// Loop through until we get to the wanted tValue.
+	for (int i = 1; i <= steps; i++) {
+		// Get the values to work with.
+		const glm::vec2& previous = computedValues[i - 1];
+		float h = previous[0] + stepDistance;
+
+		// Apply the Euler formula and store.
+		computedValues[i] = glm::vec2(h, previous[0] + h * (dxdt(previous[0], previous[1])));
+	}
+
+	// Return the final value.
+	glm::vec2 returnedValue = computedValues[steps];
+	free(computedValues);
+	return returnedValue;
 }
 
 
-glm::vec2 EulerIntegrator(glm::vec2 pos, float h, glm::vec2 &velocity, glm::vec2 Acceleration)
-{
-	glm::vec2 P;
 
-	//Calculate the displacement in that time step with the current velocity.
-	P = pos + (h * velocity);
+// Runge-Kutta 4 is a fourth order numerical integration method that integrates an IVP ODE in the form dx/dt = f(x, t), x(a) = b.
+// dxdt is the function that we are taking the numerical integral of, so f(x, t).
+// initialValue is the x and t values of the initial value of the IVP, so <a, b>.
+// tValue is the value that we are trying to approximate. The output of this function will be an approximation of <tValue, x(tValue)>.
+// steps is the number of steps to iterate over. The higher the number, the more accurate, but slower.
+glm::vec2 RK4(TwoVarFunc dxdt, glm::vec2 initialValue, float tValue, int steps) {
+	
+	// Setup the array to store the data.
+	glm::vec2* computedValues = (glm::vec2*) malloc(sizeof(glm::vec2) * (steps + 1));
+	computedValues[0] = initialValue;
 
-	//calculate the velocity at the end of the timestep.
-	velocity = AcceleratedVel(Acceleration, velocity, h);
+	// Calculate the distance of each step.
+	float stepDistance = (tValue - initialValue[1]) / steps;
 
-	//return the position P
-	return P;
+	// Loop through until we get to the wanted tValue.
+	for (int i = 1; i <= steps; i++) {
+		// Get the values to work with.
+		const glm::vec2& previous = computedValues[i-1];
+		float h = previous[0] + stepDistance;
+
+		// Apply the Runge-Kutta formula.
+		float k1 = h * dxdt(previous[0], previous[1]);
+		float k2 = h * dxdt(previous[0] + (k1 / 2.0f), previous[1] + (h / 2.0f));
+		float k3 = h * dxdt(previous[0] + (k2 / 2.0f), previous[1] + (h / 2.0f));
+		float k4 = h * dxdt(previous[0] + k3, previous[1] + h);
+
+		computedValues[i] = glm::vec2(h, previous[0] + (1.0f / 6.0f) * (k1 + 2.0f * k2 + 2.0f * k3 + k4));
+	}
+
+	// Return the final value, clean up memory.
+	glm::vec2 returnedValue = computedValues[steps];
+	free(computedValues);
+	return returnedValue;
 }
 
-glm::vec2 RK2Intergrator(glm::vec2 pos, float h, glm::vec2 &velocity, glm::vec2 Acceleration)
-{
-	/*
-	K1 is the increment based on the slope at the beginning of the interval, uing y (euler's method)
-	k2 is the increment based on the slope at the midpoint of the interval, using y + (h/2)k1
-	k3 is the increment based on the slope at the midpoint of the interval, using y + (h/2)k2
-	k4 is the increment based on the slope at the end of the interval, using y + h*k3
 
-	k1-------------k2-----------------k3----------------k4
-	|<--------------------- T -------------------------->|
-	*/
+//
+// If you would like to just do one step of integration, you can use the following for less overhead.
+//
 
-	// Se t current position as pos
-	glm::vec2 P = pos;
+// Actual eulers: x(n*h) = x([n-1]*h) + h * dydx([n-1]*h, x([n-1]*h))
+// Function pointer dxdt: function f(x,t)
+// vec2 previous: most recent value of function for x and t (e.g. x([n-1]*h), [n-1]*h)
+// float step: the amount to step by (e.g. h)
+float EulersMethodIteration(TwoVarFunc dxdt, glm::vec2 previous, float step) {
+	return previous[0] + step * (dxdt(previous[0], previous[1]));
+}
 
-	glm::vec2 k1, k2, k3, k4, vel;
-	glm::vec2 k;
-	vel = velocity;
-
-	k = EulerIntegrator(pos, 0.0f, vel, Acceleration);
-
-	k1 = vel;
+// Function pointer dxdt: function f(x,t)
+// vec2 previous: most recent value of function for x and t (e.g. x([n-1]*h), [n-1]*h)
+// float step: the amount to step by (e.g. h)
+float RungaKutta4Iteration(TwoVarFunc dxdt, glm::vec2 previous, float step) {
 	
-	//vel = velocity;
+	// Find the next value of x (e.g. x(n*h))
+	float k1 = step * dxdt(previous[0], previous[1]);
+	float k2 = step * dxdt(previous[0] + (k1 / 2.0f), previous[1] + (step / 2.0f));
+	float k3 = step * dxdt(previous[0] + (k2 / 2.0f), previous[1] + (step / 2.0f));
+	float k4 = step * dxdt(previous[0] + k3, previous[1] + step);
 
-	k = EulerIntegrator(pos + (h * k1 / 2.0f), h / 2.0f, vel, Acceleration);
-	k2 = vel;
-	
-	k = EulerIntegrator(pos + (h * k2 / 2.0f), h / 2.0f, vel, Acceleration);
-	k3 = vel;
-
-	k = EulerIntegrator(pos + (h * k3), h, vel, Acceleration);
-	k4 = vel;
-
-	//Use the velocity at the mid point to compute the displacement during the timestep h
-	P += h * (k1 + (2.0f * k2) + (2.0f * k3) + k4) / 6.0f;
-
-	//Change the velocity to the value at the end of the timestep.
-	EulerIntegrator(pos, h, velocity, Acceleration);// AcceleratedVel(Acceleration, velocity, h / 2);
-
-	//Return the poisiotn P
-	return P;
+ 	return previous[0] + (1.0f / 6.0f) * (k1 + 2.0f * k2 + 2.0f * k3 + k4);
 }

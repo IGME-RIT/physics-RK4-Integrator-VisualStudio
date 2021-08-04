@@ -46,11 +46,73 @@ https://en.wikipedia.org/wiki/Midpoint_method
 #include "GLIncludes.h"
 #include "Integrator.h"
 
-std::vector<glm::vec2> prevPosition;
-std::vector<glm::vec2> prevPosition2;
+std::vector<glm::vec2> eulerPositions;
+std::vector<glm::vec2> rk4Positions;
+std::vector<glm::vec2> actualPositions;
+
 float timeStep = 0.3f;
 bool nextTimestep = false;
 
+
+// Initial conditions.
+const glm::vec2 initialPosition (-1.0f, -1.0f);
+const glm::vec2 initialVelocity (0.5f, 0.0f);
+const glm::vec2 initialAcceleration (0.0f, 0.5f);
+
+// Variable to keep track of number of iterations that have passed.
+int iterations = 0;
+
+// For normal physics with const accel, dx/dt = accel * t + veloc
+float dxdt(float x, float t) {
+	return initialAcceleration.x * t + initialVelocity.x;
+	//return (-pow(2.f, t)) + (2.f * t) + 1;
+}
+
+float dydt(float y, float t) {
+	return initialAcceleration.y * t + initialVelocity.y;
+	//return 0.25f * t;
+}
+
+//This function sets up the two shapes we need for this example.
+void setup()
+{
+	// Push back the initial positions.
+	eulerPositions.push_back(initialPosition);
+	rk4Positions.push_back(initialPosition);
+	actualPositions.push_back(initialPosition);
+
+}
+
+// This runs once every physics timestep.
+void update()
+{
+	if (nextTimestep)
+	{
+		float euler_nextX = EulersMethodIteration(dxdt, glm::vec2(eulerPositions[iterations].x, timeStep * iterations), timeStep);
+		float euler_nextY = EulersMethodIteration(dydt, glm::vec2(eulerPositions[iterations].y, timeStep * iterations), timeStep);
+
+		//float euler_nextX = EulersMethod(dxdt, glm::vec2(eulerPositions[iterations].x, timeStep * iterations), timeStep * (iterations + 1), 1)[0];
+		//float euler_nextY = EulersMethod(dydt, glm::vec2(eulerPositions[iterations].y, timeStep * iterations), timeStep * (iterations + 1), 1)[0];
+
+		float rk4_nextX = RungaKutta4Iteration(dxdt, glm::vec2(rk4Positions[iterations].x, timeStep * iterations), timeStep);
+		float rk4_nextY = RungaKutta4Iteration(dydt, glm::vec2(rk4Positions[iterations].y, timeStep * iterations), timeStep);
+
+		//float rk4_nextX = RK4(dxdt, glm::vec2(rk4Positions[iterations].x, timeStep * iterations), timeStep * (iterations + 1), 1)[0];
+		//float rk4_nextY = RK4(dydt, glm::vec2(rk4Positions[iterations].y, timeStep * iterations), timeStep * (iterations + 1), 1)[0];
+
+		eulerPositions.push_back(glm::vec2(euler_nextX, euler_nextY));
+		rk4Positions.push_back(glm::vec2(rk4_nextX, rk4_nextY));
+
+		float t = (iterations + 1) * timeStep;
+		actualPositions.push_back(glm::vec2(
+			pow(t, 2) * (initialAcceleration.x / 2.0f) + t * initialVelocity.x + initialPosition.x,
+			pow(t, 2) * (initialAcceleration.y / 2.0f) + t * initialVelocity.y + initialPosition.y
+		));
+
+		nextTimestep = false;
+		iterations++;
+	}
+}
 
 //This struct consists of the basic stuff needed for getting the shape on the screen.
 struct stuff_for_drawing{
@@ -115,18 +177,7 @@ struct point
 	glm::vec2 Acc;
 } P,E;
 
-//This function sets up the two shapes we need for this example.
-void setup()
-{
-	//Set up the points on the bottom left corner
-	P.pos = glm::vec2(-1.0f, -1.0f);
-	P.vel = glm::vec2(0.5f, 0.0f);
-	P.Acc = glm::vec2(0.0f, 0.5f);
 
-	E.pos = glm::vec2(-1.0f, -1.0f);
-	E.vel = glm::vec2(0.5f, 0.0f);
-	E.Acc = glm::vec2(0.0f, 0.5f);
-}
 
 
 // Global data members
@@ -275,35 +326,13 @@ void init()
 	// GL_FILL will fill the area inside those lines.
 	glPolygonMode(GL_FRONT, GL_FILL);
 
-
-	prevPosition.push_back(glm::vec2(-1.0f, -1.0f));
-	prevPosition.push_back(glm::vec2(-1.0f, -1.0f));
-
-	prevPosition2.push_back(glm::vec2(-1.0f, -1.0f));
-	prevPosition2.push_back(glm::vec2(-1.0f, -1.0f));
 }
 
 #pragma endregion Helper_functions
 
 // Functions called between every frame. game logic
 #pragma region util_functions
-// This runs once every physics timestep.
-void update()
-{
-	if (nextTimestep)
-	{
-		P.pos = RK2Intergrator(P.pos, timeStep, P.vel, P.Acc);
-		E.pos = EulerIntegrator(E.pos, timeStep, E.vel, E.Acc);
-		nextTimestep = false;
-		
-		prevPosition.push_back(prevPosition.back());
-		prevPosition.push_back(P.pos);
 
-		prevPosition2.push_back(prevPosition2.back());
-		prevPosition2.push_back(E.pos);
-
-	}
-}
 
 // This function runs every frame
 void renderScene()
@@ -316,22 +345,36 @@ void renderScene()
 
 	// Tell OpenGL to use the shader program you've created.
 	glUseProgram(0);
-	glLineWidth(2.5f);
-	glColor3f(1.0f, 0.0f, 0.0f);
-	glBegin(GL_LINES);
-	for (int i = 0; i < prevPosition.size(); i++)
+
+	// Draw the lines.
+	glLineWidth(10.f);
+	glColor4f(0.0f, 1.0f, 0.0f, 0.3f);
+	glBegin(GL_LINE_STRIP);
+	for (int i = 0; i < actualPositions.size(); i++)
 	{
-		glVertex3f(prevPosition[i].x, prevPosition[i].y, 0.0f);
+		glVertex3f(actualPositions[i].x, actualPositions[i].y, 0.0f);
 	}
 	glEnd();
 
+
+	glLineWidth(5.0f);
 	glColor3f(0.0f, 0.0f, 1.0f);
-	glBegin(GL_LINES);
-	for (int i = 0; i < prevPosition2.size(); i++)
+	glBegin(GL_LINE_STRIP);
+	for (int i = 0; i < eulerPositions.size(); i++)
 	{
-		glVertex3f(prevPosition2[i].x, prevPosition2[i].y, 0.0f);
+		glVertex3f(eulerPositions[i].x, eulerPositions[i].y, -1.0f);
 	}
 	glEnd();
+
+	glColor3f(1.0f, 0.0f, 0.0f);
+	glBegin(GL_LINE_STRIP);
+	for (int i = 0; i < rk4Positions.size(); i++)
+	{
+		glVertex3f(rk4Positions[i].x, rk4Positions[i].y, -1.0f);
+	}
+	glEnd();
+
+
 }
 
 
